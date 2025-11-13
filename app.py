@@ -159,6 +159,114 @@ def create_gauge_chart(value, title, max_value=100, threshold_good=80, threshold
     fig.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
     return fig
 
+# ==================== DATA IMPORT SCREEN ====================
+def data_import_screen():
+    """Initial screen for data import"""
+    st.markdown('<div class="main-header">🔧 AMIC Work Order Management & Analytics Dashboard Suite</div>', 
+                unsafe_allow_html=True)
+    
+    # Center content
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        st.markdown("""
+        <div style='text-align: center; padding: 2rem 0;'>
+            <h2 style='color: #1f77b4;'>📁 Import Work Order Data</h2>
+            <p style='font-size: 1.1rem; color: #555;'>
+                Upload your Excel file to begin analyzing maintenance operations
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+        
+        # File uploader with prominent styling
+        uploaded_file = st.file_uploader(
+            "Choose Excel file",
+            type=['xlsx', 'xls'],
+            help="Upload an Excel file containing work order data",
+            key="data_upload"
+        )
+        
+        if uploaded_file:
+            st.success(f"✅ File uploaded: **{uploaded_file.name}**")
+            
+            # Show file info
+            st.info(f"📊 File size: {uploaded_file.size / 1024:.2f} KB")
+            
+            # Preview button
+            if st.button("🔍 Preview & Load Data", use_container_width=True, type="primary"):
+                try:
+                    with st.spinner("Loading and processing data..."):
+                        # Save to temp location
+                        data_path = f"/tmp/{uploaded_file.name}"
+                        with open(data_path, 'wb') as f:
+                            f.write(uploaded_file.getbuffer())
+                        
+                        # Load data
+                        df = load_data(data_path)
+                        
+                        # Store in session state
+                        st.session_state['data_loaded'] = True
+                        st.session_state['df'] = df
+                        st.session_state['data_path'] = data_path
+                        st.session_state['ccr_df'] = generate_ccr_data()
+                        
+                        # Show preview
+                        st.markdown("### 📋 Data Preview")
+                        st.dataframe(df.head(10), use_container_width=True)
+                        
+                        # Show summary stats
+                        col_a, col_b, col_c, col_d = st.columns(4)
+                        with col_a:
+                            st.metric("Total Records", f"{len(df):,}")
+                        with col_b:
+                            st.metric("Columns", f"{len(df.columns)}")
+                        with col_c:
+                            st.metric("Date Range", f"{df['Date Created'].min().strftime('%Y-%m-%d')} to {df['Date Created'].max().strftime('%Y-%m-%d')}")
+                        with col_d:
+                            st.metric("Workshops", f"{df['Workshop'].nunique()}")
+                        
+                        st.success("✅ Data loaded successfully! Use the sidebar to navigate dashboards.")
+                        st.balloons()
+                        
+                        # Force rerun to show dashboards
+                        st.rerun()
+                        
+                except Exception as e:
+                    st.error(f"❌ Error loading file: {str(e)}")
+                    st.info("Please ensure the file contains the required columns and is properly formatted.")
+        
+        else:
+            st.info("👆 Please upload an Excel file to continue")
+            
+            # Show expected format
+            with st.expander("📖 Expected File Format"):
+                st.markdown("""
+                Your Excel file should contain the following columns:
+                
+                **Required Columns:**
+                - Work Order ID
+                - Date Created
+                - Completion Date
+                - Status (Open, In Progress, Completed, Closed)
+                - Workshop/Site
+                - Vehicle ID
+                - System
+                - Subsystem
+                - Component
+                - Failure Mode
+                - Cause
+                - Recommended Action
+                - Assigned To
+                - Created By
+                - Labor Hours
+                - Parts Cost
+                - Downtime Hours
+                
+                **Sample Data:** Upload the provided demo file or use your own formatted data.
+                """)
+
 # ==================== DASHBOARD 1: EXECUTIVE OVERVIEW ====================
 def executive_overview_dashboard(df):
     """Dashboard 1: Executive Overview Dashboard"""
@@ -1550,79 +1658,88 @@ def future_ready_dashboard():
 def main():
     """Main application entry point"""
     
-    # Header
-    st.markdown('<div class="main-header">🔧 AMIC Work Order Management & Analytics Dashboard Suite</div>', 
-                unsafe_allow_html=True)
+    # Initialize session state
+    if 'data_loaded' not in st.session_state:
+        st.session_state['data_loaded'] = False
     
-    # Sidebar
-    with st.sidebar:
-        st.image("https://via.placeholder.com/200x80/1f77b4/ffffff?text=AMIC+FRACAS", use_container_width=True)
-        st.markdown("---")
-        st.markdown("### 📊 Dashboard Navigation")
+    # Check if data is loaded
+    if not st.session_state['data_loaded']:
+        # Show import screen
+        data_import_screen()
+    else:
+        # Data is loaded - show full application
         
-        dashboard_option = st.radio(
-            "Select Dashboard:",
-            [
-                "1️⃣ Executive Overview",
-                "2️⃣ Site Performance",
-                "3️⃣ Technician Performance",
-                "4️⃣ Failure Mode Analysis",
-                "5️⃣ Work Order Lifecycle",
-                "6️⃣ Catalogue Governance",
-                "7️⃣ Data Quality & Compliance",
-                "8️⃣ Future-Ready Analytics"
-            ]
-        )
+        # Header
+        st.markdown('<div class="main-header">🔧 AMIC Work Order Management & Analytics Dashboard Suite</div>', 
+                    unsafe_allow_html=True)
         
-        st.markdown("---")
-        st.markdown("### ⚙️ Settings")
-        
-        # File uploader
-        uploaded_file = st.file_uploader("Upload Work Order Data", type=['xlsx', 'csv'])
-        
-        if uploaded_file:
-            data_path = f"/tmp/{uploaded_file.name}"
-            with open(data_path, 'wb') as f:
-                f.write(uploaded_file.getbuffer())
-        else:
-            # Use default file
-            data_path = '/mnt/user-data/uploads/Fake_WorkOrders_AMIC_Enhanced_5000.xlsx'
-        
-        st.markdown("---")
-        st.markdown("""
-        <div style='text-align: center; color: #7f8c8d; font-size: 0.85rem;'>
-        <strong>AMIC FRACAS v2.0</strong><br>
-        © 2025 All Rights Reserved
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Load data
-    try:
-        with st.spinner("Loading data..."):
-            df = load_data(data_path)
-            ccr_df = generate_ccr_data()
+        # Sidebar
+        with st.sidebar:
+            st.image("https://via.placeholder.com/200x80/1f77b4/ffffff?text=AMIC+FRACAS", use_container_width=True)
+            st.markdown("---")
+            
+            # Data info
+            st.markdown("### 📊 Loaded Data")
+            df = st.session_state['df']
+            st.success(f"✅ {len(df):,} records loaded")
+            
+            # Reset button
+            if st.button("🔄 Load Different File", use_container_width=True):
+                st.session_state['data_loaded'] = False
+                st.rerun()
+            
+            st.markdown("---")
+            st.markdown("### 📊 Dashboard Navigation")
+            
+            dashboard_option = st.radio(
+                "Select Dashboard:",
+                [
+                    "1️⃣ Executive Overview",
+                    "2️⃣ Site Performance",
+                    "3️⃣ Technician Performance",
+                    "4️⃣ Failure Mode Analysis",
+                    "5️⃣ Work Order Lifecycle",
+                    "6️⃣ Catalogue Governance",
+                    "7️⃣ Data Quality & Compliance",
+                    "8️⃣ Future-Ready Analytics"
+                ]
+            )
+            
+            st.markdown("---")
+            st.markdown("""
+            <div style='text-align: center; color: #7f8c8d; font-size: 0.85rem;'>
+            <strong>AMIC FRACAS v2.0</strong><br>
+            © 2025 All Rights Reserved
+            </div>
+            """, unsafe_allow_html=True)
         
         # Display selected dashboard
-        if "Executive Overview" in dashboard_option:
-            executive_overview_dashboard(df)
-        elif "Site Performance" in dashboard_option:
-            site_performance_dashboard(df)
-        elif "Technician Performance" in dashboard_option:
-            technician_performance_dashboard(df)
-        elif "Failure Mode Analysis" in dashboard_option:
-            failure_mode_analysis_dashboard(df)
-        elif "Work Order Lifecycle" in dashboard_option:
-            work_order_lifecycle_dashboard(df)
-        elif "Catalogue Governance" in dashboard_option:
-            catalogue_governance_dashboard(ccr_df)
-        elif "Data Quality" in dashboard_option:
-            data_quality_compliance_dashboard(df)
-        elif "Future-Ready" in dashboard_option:
-            future_ready_dashboard()
-    
-    except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
-        st.info("Please upload a valid work order Excel file or ensure the default data file is available.")
+        try:
+            df = st.session_state['df']
+            ccr_df = st.session_state['ccr_df']
+            
+            if "Executive Overview" in dashboard_option:
+                executive_overview_dashboard(df)
+            elif "Site Performance" in dashboard_option:
+                site_performance_dashboard(df)
+            elif "Technician Performance" in dashboard_option:
+                technician_performance_dashboard(df)
+            elif "Failure Mode Analysis" in dashboard_option:
+                failure_mode_analysis_dashboard(df)
+            elif "Work Order Lifecycle" in dashboard_option:
+                work_order_lifecycle_dashboard(df)
+            elif "Catalogue Governance" in dashboard_option:
+                catalogue_governance_dashboard(ccr_df)
+            elif "Data Quality" in dashboard_option:
+                data_quality_compliance_dashboard(df)
+            elif "Future-Ready" in dashboard_option:
+                future_ready_dashboard()
+        
+        except Exception as e:
+            st.error(f"Error displaying dashboard: {str(e)}")
+            if st.button("Return to Import"):
+                st.session_state['data_loaded'] = False
+                st.rerun()
 
 if __name__ == "__main__":
     main()
