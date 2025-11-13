@@ -1556,7 +1556,7 @@ def data_quality_compliance_dashboard(df):
 
 # ==================== DASHBOARD 8: FUTURE-READY ====================
 def future_ready_dashboard():
-    """Dashboard 8: Future-Ready Dashboards (Phase 2+)"""
+    """Dashboard 8: Future-Ready Dashboards"""
     st.markdown('<div class="dashboard-title">🚀 Future-Ready Analytics (Phase 2+)</div>', unsafe_allow_html=True)
     st.markdown("*Next-generation predictive and AI-powered insights*")
     
@@ -1582,8 +1582,7 @@ def future_ready_dashboard():
         - Comparative reliability benchmarking
         """)
         
-        st.image("https://via.placeholder.com/800x400/3498db/ffffff?text=MTBF+%26+MTTR+Trends+Dashboard", 
-                 caption="Sample: Reliability Performance Dashboard")
+        st.info("📊 Visual mockups and detailed feature specifications will be available in Q2 2025")
     
     with tab2:
         st.subheader("🤖 Predictive Maintenance Insights")
@@ -1597,8 +1596,7 @@ def future_ready_dashboard():
         - Integration with IoT sensor data
         """)
         
-        st.image("https://via.placeholder.com/800x400/2ecc71/ffffff?text=Predictive+Maintenance+Dashboard",
-                 caption="Sample: AI-Powered Predictive Analytics")
+        st.info("🔮 Machine learning models currently in development phase")
     
     with tab3:
         st.subheader("🔮 Component Failure Forecasting")
@@ -1612,8 +1610,7 @@ def future_ready_dashboard():
         - Multi-horizon forecasting (short/medium/long term)
         """)
         
-        st.image("https://via.placeholder.com/800x400/e74c3c/ffffff?text=Failure+Forecasting+%26+Cost+Impact",
-                 caption="Sample: Forecasting & Simulation Dashboard")
+        st.info("📈 Forecasting algorithms being calibrated with historical data")
     
     with tab4:
         st.subheader("📊 Reliability Pareto Analysis")
@@ -1627,8 +1624,7 @@ def future_ready_dashboard():
         - Continuous improvement tracking
         """)
         
-        st.image("https://via.placeholder.com/800x400/f39c12/ffffff?text=Advanced+Pareto+Analysis",
-                 caption="Sample: Multi-Dimensional Pareto Dashboard")
+        st.info("📉 Advanced Pareto visualizations in design phase")
     
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
     
@@ -1641,7 +1637,7 @@ def future_ready_dashboard():
             'Basic Predictive Models',
             'Advanced AI/ML Integration',
             'Component Forecasting',
-            'Full Pareto & ROI Analysis'
+            'Full Pareto and ROI Analysis'
         ],
         'Status': ['Q2 2025', 'Q3 2025', 'Q4 2025', 'Q4 2025', 'Q1 2026'],
         'Priority': ['High', 'High', 'Medium', 'Medium', 'Low']
@@ -1650,7 +1646,7 @@ def future_ready_dashboard():
     st.dataframe(roadmap, use_container_width=True, height=250)
     
     st.success("""
-    💡 **Get Ready:** These features will leverage the data you're collecting now. 
+    💡 **Get Ready:** These features will leverage the data you are collecting now. 
     Ensure data quality and completeness to maximize the value of future analytics!
     """)
 
