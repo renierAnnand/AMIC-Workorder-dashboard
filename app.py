@@ -1671,7 +1671,8 @@ def main():
         
         # Sidebar
         with st.sidebar:
-            st.image("https://via.placeholder.com/200x80/1f77b4/ffffff?text=AMIC+FRACAS", use_container_width=True)
+            st.markdown("### 🔧 AMIC FRACAS")
+            st.markdown("*Work Order Management System*")
             st.markdown("---")
             
             # Data info
