@@ -448,6 +448,26 @@ def executive_overview_dashboard(df):
     """Executive Overview Dashboard"""
     st.markdown('<div class="dashboard-title">⭐ Executive Overview</div>', unsafe_allow_html=True)
     
+    # Dashboard description
+    with st.expander("ℹ️ About This Dashboard", expanded=False):
+        st.markdown("""
+        **Purpose:** Provide command-level visibility into overall maintenance operations and fleet health.
+        
+        **Key Performance Indicators:**
+        - **Total Work Orders**: Complete maintenance workload volume
+        - **Active Orders**: Work currently in progress (not completed or closed)
+        - **Critical/High Priority**: Urgent work requiring immediate attention (Priority 1-2)
+        - **Completion Rate**: Percentage of work orders successfully closed
+        - **Avg Cycle Time**: Average days from work order creation to completion
+        
+        **Visual Analytics:**
+        - **Status Distribution**: Current state of all work orders
+        - **Monthly Trend**: Workload patterns over time
+        - **Workshop Performance**: Volume and efficiency by location
+        
+        **Use This Dashboard To:** Monitor overall fleet readiness, identify systemic bottlenecks, and track operational efficiency.
+        """)
+    
     if len(df) == 0:
         st.warning("No data available for selected filters")
         return
@@ -528,6 +548,26 @@ def parts_analysis_dashboard(df):
     """Spare Parts Analysis"""
     st.markdown('<div class="dashboard-title">📦 Parts & Supply Chain Analysis</div>', unsafe_allow_html=True)
     
+    # Dashboard description
+    with st.expander("ℹ️ About This Dashboard", expanded=False):
+        st.markdown("""
+        **Purpose:** Monitor spare parts requirements and supply chain performance to reduce equipment downtime.
+        
+        **Key Metrics:**
+        - **Requires Parts**: Work orders that need spare parts (vs. labor-only repairs)
+        - **Waiting for Parts**: Orders currently stuck waiting for parts delivery
+        - **Parts Received**: Orders where required parts have arrived
+        - **Parts Pending**: Orders needing parts that haven't been received yet
+        - **Avg Wait Time**: Average days work orders spend in "Waiting Parts" status
+        
+        **Supply Chain Health Indicators:**
+        - High "Waiting Parts" count = Supply chain bottleneck
+        - Long avg wait time = Procurement or logistics issues
+        - High parts requirement % = Equipment aging or poor reliability
+        
+        **Action Items:** Focus on reducing wait times through better inventory management and supplier relationships.
+        """)
+    
     if len(df) == 0:
         st.warning("No data available for selected filters")
         return
@@ -579,6 +619,20 @@ def parts_analysis_dashboard(df):
 def backlog_aging_dashboard(df):
     """Backlog Aging Dashboard"""
     st.markdown('<div class="dashboard-title">⏰ Backlog Aging Analysis</div>', unsafe_allow_html=True)
+    
+    # Dashboard description
+    with st.expander("ℹ️ About This Dashboard", expanded=False):
+        st.markdown("""
+        **Purpose:** Monitor open and waiting work orders by age to identify bottlenecks and prioritize action.
+        
+        **Key Metrics:**
+        - **Open Backlog**: Work orders not yet completed or closed
+        - **Waiting Parts**: Orders stuck waiting for spare parts delivery
+        - **Avg Age**: Average days since work order creation
+        - **Aging Buckets**: Work orders grouped by how long they've been open (0-2, 3-7, 8-14, 15-30, 30+ days)
+        
+        **How to Use:** Focus on orders aging beyond 14 days and high-priority items to prevent SLA breaches.
+        """)
     
     if len(df) == 0:
         st.warning("No data available for selected filters")
@@ -645,15 +699,36 @@ def backlog_aging_dashboard(df):
         ['WO Number', 'Workshop', 'Priority', 'Status', 'Days Open', 'Description']
     ].copy()
     
-    st.dataframe(
-        oldest.style.background_gradient(subset=['Days Open'], cmap='Reds'),
-        use_container_width=True,
-        height=400
-    )
+    # Color code by days open instead of using background_gradient
+    def color_age(row):
+        if row['Days Open'] > 30:
+            return ['background-color: #ffcccc'] * len(row)
+        elif row['Days Open'] > 14:
+            return ['background-color: #ffe6cc'] * len(row)
+        else:
+            return ['background-color: #ffffcc'] * len(row)
+    
+    st.dataframe(oldest, use_container_width=True, height=400)
 
 def lifecycle_dashboard(df):
     """Work Order Lifecycle Dashboard (Queue vs Repair vs Total)"""
     st.markdown('<div class="dashboard-title">🔄 Work Order Lifecycle Analysis</div>', unsafe_allow_html=True)
+    
+    # Dashboard description
+    with st.expander("ℹ️ About This Dashboard", expanded=False):
+        st.markdown("""
+        **Purpose:** Understand where time is spent in the maintenance process to optimize workflow efficiency.
+        
+        **Key Metrics:**
+        - **Queue Time**: Time from work order creation (MNG system) to when work actually starts
+          - *Calculation:* Start Date - MNG Creation Date
+        - **Repair Time**: Actual time spent working on the repair
+          - *Calculation:* Completion Date - Start Date
+        - **Total Cycle Time**: End-to-end time from creation to completion
+          - *Calculation:* Completion Date - MNG Creation Date
+        
+        **How to Use:** High queue times indicate capacity issues. High repair times suggest complexity or resource constraints.
+        """)
     
     if len(df) == 0:
         st.warning("No data available for selected filters")
@@ -729,6 +804,21 @@ def priority_risk_dashboard(df):
     """Priority & Risk Dashboard"""
     st.markdown('<div class="dashboard-title">⚠️ Priority & Risk Analysis</div>', unsafe_allow_html=True)
     
+    # Dashboard description
+    with st.expander("ℹ️ About This Dashboard", expanded=False):
+        st.markdown("""
+        **Purpose:** Track and manage high-priority work orders to prevent critical equipment downtime.
+        
+        **Priority Levels:**
+        - **Priority 1 - Critical**: Mission-critical, immediate attention required
+        - **Priority 2 - High**: Important, may impact operations
+        - **Priority 3 - Normal**: Standard maintenance work
+        - **Priority 4 - Low**: Can be deferred
+        - **Priority 5 - Planning**: Scheduled future work
+        
+        **Key Focus:** Monitor P1/P2 open work orders and their aging to ensure timely resolution.
+        """)
+    
     if len(df) == 0:
         st.warning("No data available for selected filters")
         return
@@ -790,17 +880,30 @@ def priority_risk_dashboard(df):
     ]
     
     if len(high_pri) > 0:
-        st.dataframe(
-            high_pri.style.background_gradient(subset=['Days Open'], cmap='Reds'),
-            use_container_width=True,
-            height=400
-        )
+        st.dataframe(high_pri, use_container_width=True, height=400)
     else:
         st.info("No high priority open work orders")
 
 def preventive_corrective_dashboard(df):
     """Preventive vs Corrective Dashboard"""
     st.markdown('<div class="dashboard-title">🔧 Preventive vs Corrective Maintenance</div>', unsafe_allow_html=True)
+    
+    # Dashboard description
+    with st.expander("ℹ️ About This Dashboard", expanded=False):
+        st.markdown("""
+        **Purpose:** Monitor the balance between preventive and corrective maintenance to improve reliability.
+        
+        **Maintenance Types:**
+        - **Preventive (PM)**: Scheduled maintenance to prevent failures
+        - **Corrective (CM)**: Repairs after equipment failure
+        - **Emergency**: Unplanned urgent repairs
+        - **Modification**: Equipment upgrades or changes
+        
+        **Target Ratio:** Industry best practice aims for 30-40% preventive maintenance.
+        **PM/CM Ratio Calculation:** PM Count / CM Count
+        
+        **How to Use:** Higher PM ratios indicate proactive maintenance culture and better equipment reliability.
+        """)
     
     if len(df) == 0:
         st.warning("No data available for selected filters")
@@ -878,6 +981,24 @@ def repeat_issues_dashboard(df):
     """Repeat Issues Dashboard"""
     st.markdown('<div class="dashboard-title">🔁 Repeat Issues Analysis</div>', unsafe_allow_html=True)
     
+    # Dashboard description
+    with st.expander("ℹ️ About This Dashboard", expanded=False):
+        st.markdown("""
+        **Purpose:** Identify vehicles and issues requiring repeated maintenance to address root causes.
+        
+        **Key Indicators:**
+        - **Top Vehicles by WO Count**: Vehicles requiring the most maintenance attention
+        - **Top Issue Descriptions**: Most frequently occurring maintenance problems
+        - **Repeat Issues (30-day window)**: Same vehicle with same issue multiple times recently
+        
+        **Why It Matters:**
+        - Repeat issues indicate incomplete repairs or underlying systemic problems
+        - High-frequency vehicles may need major overhaul or replacement
+        - Common issues may benefit from design changes or improved procedures
+        
+        **Action Items:** Investigate top repeat offenders for root cause analysis.
+        """)
+    
     if len(df) == 0:
         st.warning("No data available for selected filters")
         return
@@ -954,6 +1075,25 @@ def technician_productivity_dashboard(df):
     """Technician Productivity Dashboard"""
     st.markdown('<div class="dashboard-title">👨‍🔧 Technician Productivity Analysis</div>', unsafe_allow_html=True)
     
+    # Dashboard description
+    with st.expander("ℹ️ About This Dashboard", expanded=False):
+        st.markdown("""
+        **Purpose:** Evaluate technician performance to identify training needs and recognize top performers.
+        
+        **Key Metrics:**
+        - **Completed WOs**: Total work orders completed by each technician
+        - **Avg Repair Time**: Average days to complete repairs (lower is better)
+        - **Avg Queue Time**: Average wait time before work starts (workshop capacity indicator)
+        - **High Priority WOs**: Count of critical/high priority work handled
+        
+        **Performance Balance:**
+        - High completion count + Low repair time = Highly efficient technician
+        - High completion count + High repair time = May be handling complex repairs
+        - Low completion count = May need additional training or have capacity constraints
+        
+        **How to Use:** Balance workload across technicians and identify top performers for recognition.
+        """)
+    
     if len(df) == 0:
         st.warning("No data available for selected filters")
         return
@@ -1018,9 +1158,7 @@ def technician_productivity_dashboard(df):
     # Leaderboard
     st.subheader("🏆 Technician Leaderboard")
     st.dataframe(
-        tech_stats.style.background_gradient(subset=['Completed WOs'], cmap='Greens')
-                       .background_gradient(subset=['High Priority WOs'], cmap='Reds')
-                       .format({'Avg Repair Time': '{:.1f}', 'Avg Queue Time': '{:.1f}', 'Avg Total Time': '{:.1f}'}),
+        tech_stats.head(20),
         use_container_width=True,
         height=400
     )
@@ -1037,6 +1175,29 @@ def technician_productivity_dashboard(df):
 def data_quality_dashboard(df):
     """Data Quality & Compliance Dashboard"""
     st.markdown('<div class="dashboard-title">✅ Data Quality & Compliance</div>', unsafe_allow_html=True)
+    
+    # Dashboard description
+    with st.expander("ℹ️ About This Dashboard", expanded=False):
+        st.markdown("""
+        **Purpose:** Monitor data completeness and integrity to ensure accurate reporting and compliance.
+        
+        **Critical Quality Checks:**
+        - **Missing Start Date**: Work orders without a recorded start time
+        - **Missing Completion Date**: Completed/Closed orders missing closure date (status mismatch)
+        - **Missing Technician Notes**: Work orders without repair documentation
+        - **Missing Assigned To**: Work orders without technician assignment
+        
+        **Data Quality Score Calculation:**
+        - Average of completeness percentages across all fields
+        - Target: >95% completeness for operational excellence
+        
+        **Compliance Impacts:**
+        - Poor data quality affects analytics accuracy
+        - Missing completion dates cause incorrect cycle time calculations
+        - Undocumented work creates audit and accountability issues
+        
+        **Action Items:** Address problematic records shown in the table below.
+        """)
     
     if len(df) == 0:
         st.warning("No data available for selected filters")
@@ -1138,6 +1299,27 @@ def owning_unit_dashboard(df):
     """Owning Unit Dashboard"""
     st.markdown('<div class="dashboard-title">🏢 Owning Unit Analysis</div>', unsafe_allow_html=True)
     
+    # Dashboard description
+    with st.expander("ℹ️ About This Dashboard", expanded=False):
+        st.markdown("""
+        **Purpose:** Analyze maintenance patterns by military unit to identify high-demand units and support planning.
+        
+        **Key Metrics:**
+        - **WO Count by Unit**: Total maintenance workload per unit
+        - **Avg Cycle Time by Unit**: How long repairs take for each unit's vehicles
+        - **Priority Mix**: Distribution of urgent vs. routine work by unit
+        
+        **Strategic Insights:**
+        - High WO volume units may need additional equipment or preventive maintenance focus
+        - Long cycle times may indicate parts availability issues or complex equipment
+        - Priority distribution shows operational tempo and equipment reliability
+        
+        **Use Cases:**
+        - Resource allocation planning
+        - Unit readiness assessment
+        - Equipment replacement prioritization
+        """)
+    
     if len(df) == 0:
         st.warning("No data available for selected filters")
         return
@@ -1213,17 +1395,33 @@ def owning_unit_dashboard(df):
     
     # Detailed unit table
     st.subheader("📋 Unit Performance Summary")
-    st.dataframe(
-        unit_stats.style.background_gradient(subset=['WO Count'], cmap='Blues')
-                       .background_gradient(subset=['Avg Cycle Time'], cmap='Reds')
-                       .format({'Avg Cycle Time': '{:.1f}'}),
-        use_container_width=True,
-        height=400
-    )
+    st.dataframe(unit_stats, use_container_width=True, height=400)
 
 def vehicle_mileage_dashboard(df):
     """Vehicle Mileage Dashboard"""
     st.markdown('<div class="dashboard-title">🚗 Vehicle Mileage Analysis</div>', unsafe_allow_html=True)
+    
+    # Dashboard description
+    with st.expander("ℹ️ About This Dashboard", expanded=False):
+        st.markdown("""
+        **Purpose:** Correlate maintenance patterns with vehicle mileage to optimize fleet replacement and service intervals.
+        
+        **Mileage Buckets:**
+        - **0-20k km**: New vehicles, break-in period
+        - **20-50k km**: Early operational life
+        - **50-100k km**: Mid-life, increased maintenance expected
+        - **100k+ km**: High-mileage, consider replacement
+        
+        **Key Analyses:**
+        - **WO Count by Mileage**: Maintenance frequency increases with age/mileage
+        - **Avg Cycle Time by Mileage**: Complex repairs increase with vehicle age
+        - **Mileage-Cycle Correlation**: Statistical relationship between mileage and repair time
+        
+        **Strategic Decisions:**
+        - High-mileage vehicles with frequent repairs are replacement candidates
+        - Unusual patterns in low-mileage vehicles indicate quality or operational issues
+        - Plan preventive maintenance schedules based on mileage thresholds
+        """)
     
     if len(df) == 0:
         st.warning("No data available for selected filters")
