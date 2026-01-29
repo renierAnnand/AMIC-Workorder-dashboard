@@ -1492,6 +1492,192 @@ def vehicle_mileage_dashboard(df):
     fig.update_layout(height=400)
     st.plotly_chart(fig, use_container_width=True)
 
+def vehicle_fleet_analysis_dashboard(df):
+    """Vehicle Fleet Analysis Dashboard"""
+    st.markdown('<div class="dashboard-title">🚙 Vehicle Fleet Analysis</div>', unsafe_allow_html=True)
+    
+    # Dashboard description
+    with st.expander("ℹ️ About This Dashboard", expanded=False):
+        st.markdown("""
+        **Purpose:** Comprehensive fleet-level analysis to identify problem vehicles, parts patterns, and optimize fleet composition.
+        
+        **Key Analyses:**
+        - **Vehicle Type Distribution**: Fleet composition and workload by vehicle category
+        - **Parts Requirements by Vehicle**: Which vehicles need the most spare parts
+        - **Top Faults per Vehicle**: Most common issues affecting specific vehicles
+        - **High-Maintenance Vehicles**: Individual vehicles requiring excessive attention
+        
+        **Strategic Insights:**
+        - Identify vehicle types with highest maintenance burden
+        - Plan parts inventory based on vehicle-specific patterns
+        - Target problem vehicles for replacement or major overhaul
+        - Optimize future procurement based on reliability data
+        
+        **Use Cases:**
+        - Fleet composition planning
+        - Parts inventory optimization
+        - Vehicle replacement prioritization
+        - Procurement decision support
+        """)
+    
+    if len(df) == 0:
+        st.warning("No data available for selected filters")
+        return
+    
+    # Top KPIs
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        total_vehicles = df['Vehicle ID'].nunique()
+        st.metric("Total Unique Vehicles", f"{total_vehicles:,}")
+    
+    with col2:
+        total_types = df['Vehicle Type'].nunique()
+        st.metric("Vehicle Types", f"{total_types:,}")
+    
+    with col3:
+        avg_wo_per_vehicle = len(df) / total_vehicles if total_vehicles > 0 else 0
+        st.metric("Avg WOs per Vehicle", f"{avg_wo_per_vehicle:.1f}")
+    
+    with col4:
+        parts_intensive = (df['Requires Parts'] == True).sum() / len(df) * 100
+        st.metric("Parts-Intensive WOs", f"{parts_intensive:.1f}%")
+    
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    
+    # Vehicle Type Distribution
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🚗 Fleet Composition by Vehicle Type")
+        type_counts = df.groupby('Vehicle Type')['Vehicle ID'].nunique().reset_index()
+        type_counts.columns = ['Vehicle Type', 'Vehicle Count']
+        type_counts = type_counts.sort_values('Vehicle Count', ascending=False)
+        
+        fig = px.bar(type_counts, y='Vehicle Type', x='Vehicle Count', orientation='h',
+                    color='Vehicle Count', color_continuous_scale='Blues',
+                    text='Vehicle Count')
+        fig.update_traces(textposition='outside')
+        fig.update_layout(height=400, showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        st.subheader("📊 Work Orders by Vehicle Type")
+        type_wo_counts = df.groupby('Vehicle Type').size().reset_index(name='WO Count')
+        type_wo_counts = type_wo_counts.sort_values('WO Count', ascending=False)
+        
+        fig = px.bar(type_wo_counts, y='Vehicle Type', x='WO Count', orientation='h',
+                    color='WO Count', color_continuous_scale='Oranges',
+                    text='WO Count')
+        fig.update_traces(textposition='outside')
+        fig.update_layout(height=400, showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+    
+    # Parts Analysis by Vehicle Type
+    st.subheader("📦 Parts Requirements by Vehicle Type")
+    
+    parts_by_type = df.groupby('Vehicle Type').agg({
+        'WO Number': 'count',
+        'Requires Parts': lambda x: (x == True).sum(),
+        'Total Cycle Time (Days)': 'mean'
+    }).reset_index()
+    parts_by_type.columns = ['Vehicle Type', 'Total WOs', 'WOs Requiring Parts', 'Avg Cycle Time']
+    parts_by_type['Parts %'] = (parts_by_type['WOs Requiring Parts'] / parts_by_type['Total WOs'] * 100).round(1)
+    parts_by_type = parts_by_type.sort_values('WOs Requiring Parts', ascending=False)
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        fig = px.bar(parts_by_type, x='Vehicle Type', y='WOs Requiring Parts',
+                    color='Parts %', color_continuous_scale='Reds',
+                    text='WOs Requiring Parts',
+                    labels={'WOs Requiring Parts': 'Work Orders Requiring Parts'})
+        fig.update_traces(textposition='outside')
+        fig.update_layout(height=350, xaxis_tickangle=45)
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        st.markdown("**Parts Dependency Summary**")
+        st.dataframe(
+            parts_by_type[['Vehicle Type', 'Parts %', 'WOs Requiring Parts']].head(10),
+            use_container_width=True,
+            height=350
+        )
+    
+    # Top Problem Vehicles
+    st.subheader("🔴 Top 20 High-Maintenance Vehicles")
+    
+    vehicle_stats = df.groupby('Vehicle ID').agg({
+        'WO Number': 'count',
+        'Requires Parts': lambda x: (x == True).sum(),
+        'Total Cycle Time (Days)': 'mean',
+        'Vehicle Type': 'first',
+        'Workshop': lambda x: x.mode()[0] if len(x) > 0 else 'Unknown'
+    }).reset_index()
+    vehicle_stats.columns = ['Vehicle ID', 'WO Count', 'Parts Required', 'Avg Cycle Time', 'Vehicle Type', 'Primary Workshop']
+    vehicle_stats = vehicle_stats.sort_values('WO Count', ascending=False).head(20)
+    
+    st.dataframe(vehicle_stats, use_container_width=True, height=400)
+    
+    # Top Faults/Issues per Vehicle Type
+    st.subheader("⚙️ Top 5 Faults by Vehicle Type")
+    
+    # Select top 3 vehicle types by WO volume
+    top_types = df['Vehicle Type'].value_counts().head(3).index.tolist()
+    
+    tabs = st.tabs([f"📋 {vtype}" for vtype in top_types])
+    
+    for idx, vtype in enumerate(top_types):
+        with tabs[idx]:
+            df_type = df[df['Vehicle Type'] == vtype]
+            
+            # Top 5 issues for this vehicle type
+            top_issues = df_type['Description'].value_counts().head(5).reset_index()
+            top_issues.columns = ['Issue Description', 'Frequency']
+            top_issues['Issue Description'] = top_issues['Issue Description'].str[:60] + '...'
+            
+            col_a, col_b = st.columns([3, 1])
+            
+            with col_a:
+                fig = px.bar(top_issues, y='Issue Description', x='Frequency', orientation='h',
+                            color='Frequency', color_continuous_scale='Reds',
+                            text='Frequency')
+                fig.update_traces(textposition='outside')
+                fig.update_layout(height=300, showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col_b:
+                st.markdown(f"**Total WOs:** {len(df_type):,}")
+                parts_pct = (df_type['Requires Parts'] == True).sum() / len(df_type) * 100
+                st.markdown(f"**Parts Required:** {parts_pct:.1f}%")
+                avg_cycle = df_type['Total Cycle Time (Days)'].mean()
+                st.markdown(f"**Avg Cycle Time:** {avg_cycle:.1f} days")
+    
+    # Vehicle Type Performance Comparison
+    st.subheader("📊 Vehicle Type Performance Comparison")
+    
+    type_performance = df.groupby('Vehicle Type').agg({
+        'WO Number': 'count',
+        'Total Cycle Time (Days)': 'mean',
+        'Requires Parts': lambda x: (x == True).sum() / len(x) * 100,
+        'Priority Level': lambda x: (x <= 2).sum()
+    }).round(1).reset_index()
+    type_performance.columns = ['Vehicle Type', 'Total WOs', 'Avg Cycle Time (Days)', 'Parts Required %', 'High Priority Count']
+    type_performance = type_performance.sort_values('Total WOs', ascending=False)
+    
+    st.dataframe(type_performance, use_container_width=True, height=300)
+    
+    # Parts vs Non-Parts Distribution
+    st.subheader("🔧 Maintenance Profile by Vehicle Type")
+    
+    maintenance_profile = df.groupby(['Vehicle Type', 'Requires Parts']).size().reset_index(name='Count')
+    maintenance_profile['Requires Parts'] = maintenance_profile['Requires Parts'].map({True: 'Parts Required', False: 'Labor Only'})
+    
+    fig = px.bar(maintenance_profile, x='Vehicle Type', y='Count', color='Requires Parts',
+                barmode='group', color_discrete_map={'Parts Required': '#dc3545', 'Labor Only': '#28a745'})
+    fig.update_layout(height=400, xaxis_tickangle=45)
+    st.plotly_chart(fig, use_container_width=True)
+
 # ==================== MAIN APPLICATION ====================
 
 def main():
@@ -1661,7 +1847,8 @@ def main():
                 "8️⃣ Technician Productivity",
                 "9️⃣ Data Quality",
                 "🔟 Owning Unit Analysis",
-                "1️⃣1️⃣ Vehicle Mileage"
+                "1️⃣1️⃣ Vehicle Mileage",
+                "1️⃣2️⃣ Vehicle Fleet Analysis"
             ]
             
             dashboard = st.radio("Select Dashboard:", dashboard_options)
@@ -1698,6 +1885,8 @@ def main():
                 owning_unit_dashboard(df_filtered)
             elif "Vehicle Mileage" in dashboard:
                 vehicle_mileage_dashboard(df_filtered)
+            elif "Vehicle Fleet Analysis" in dashboard:
+                vehicle_fleet_analysis_dashboard(df_filtered)
         
         except Exception as e:
             st.error(f"Error displaying dashboard: {str(e)}")
