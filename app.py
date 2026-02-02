@@ -2065,6 +2065,359 @@ def vehicle_fleet_analysis_dashboard(df):
 
 # ==================== MAIN APPLICATION ====================
 
+def summary_view_dashboard(df):
+    """Summary View Dashboard - Consolidated view of all key metrics"""
+    st.markdown('<div class="dashboard-title">📊 Summary View - All Dashboards at a Glance</div>', unsafe_allow_html=True)
+    
+    # Dashboard description
+    with st.expander("ℹ️ About This Dashboard", expanded=False):
+        st.markdown("""
+        **Purpose:** Provide a consolidated, at-a-glance view of all key performance indicators across all 13 dashboards.
+        
+        **What You'll See:**
+        - Critical KPIs from each functional area
+        - Color-coded status indicators (🟢 Good, 🟡 Warning, 🔴 Critical)
+        - Quick navigation to detailed dashboards
+        - Trend indicators showing improvement or decline
+        
+        **Best Used For:**
+        - Daily morning briefings (5 minutes)
+        - Executive reporting
+        - Quick health checks
+        - Identifying which areas need immediate attention
+        
+        **How to Use:** Review status indicators, then drill into specific dashboards for details.
+        """)
+    
+    if len(df) == 0:
+        st.warning("No data available for selected filters")
+        return
+    
+    # Calculate all key metrics
+    total_wo = len(df)
+    active_wo = len(df[df['Is Active']])
+    completed_wo = len(df[~df['Is Active']])
+    completion_rate = (completed_wo / total_wo * 100) if total_wo > 0 else 0
+    
+    # Top-Level KPIs
+    st.markdown("### 🎯 Overall Performance")
+    
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        st.metric("Total Work Orders", f"{total_wo:,}")
+    
+    with col2:
+        status_color = "🟢" if active_wo < total_wo * 0.3 else "🟡" if active_wo < total_wo * 0.5 else "🔴"
+        st.metric("Active Orders", f"{active_wo:,}", delta=f"{active_wo/total_wo*100:.1f}%")
+        st.markdown(f"{status_color} Status")
+    
+    with col3:
+        comp_color = "🟢" if completion_rate > 70 else "🟡" if completion_rate > 50 else "🔴"
+        st.metric("Completion Rate", f"{completion_rate:.1f}%")
+        st.markdown(f"{comp_color} Status")
+    
+    with col4:
+        critical = len(df[(df['Priority Level'] <= 2) & df['Is Active']])
+        crit_color = "🟢" if critical < 50 else "🟡" if critical < 100 else "🔴"
+        st.metric("Critical/High Open", f"{critical:,}")
+        st.markdown(f"{crit_color} Status")
+    
+    with col5:
+        avg_cycle = df[~df['Is Active']]['Total Cycle Time (Days)'].mean()
+        cycle_color = "🟢" if avg_cycle < 7 else "🟡" if avg_cycle < 10 else "🔴"
+        st.metric("Avg Cycle Time", f"{avg_cycle:.1f} days" if not pd.isna(avg_cycle) else "N/A")
+        st.markdown(f"{cycle_color} Status")
+    
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    
+    # Dashboard Summaries - 3 columns
+    st.markdown("### 📋 Dashboard Summaries")
+    
+    # Row 1: Executive, Parts, Backlog
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("#### 1️⃣ Executive Overview")
+        status_dist = df['Status'].value_counts()
+        in_progress = status_dist.get('In Progress', 0)
+        st.metric("In Progress", f"{in_progress:,}")
+        st.metric("Workshops", f"{df['Workshop'].nunique()}")
+        st.markdown("---")
+    
+    with col2:
+        st.markdown("#### 2️⃣ Parts Analysis")
+        requires_parts = (df['Requires Parts'] == True).sum()
+        waiting_parts = len(df[df['Status'] == 'Waiting Parts'])
+        parts_pct = (requires_parts / total_wo * 100) if total_wo > 0 else 0
+        parts_color = "🟢" if parts_pct < 40 else "🟡" if parts_pct < 60 else "🔴"
+        st.metric("Requires Parts", f"{requires_parts:,} ({parts_pct:.0f}%)")
+        waiting_color = "🟢" if waiting_parts < 50 else "🟡" if waiting_parts < 100 else "🔴"
+        st.metric("Waiting Parts", f"{waiting_parts:,}")
+        st.markdown(f"{waiting_color} Status")
+        st.markdown("---")
+    
+    with col3:
+        st.markdown("#### 3️⃣ Backlog Aging")
+        open_backlog = len(df[df['Is Active']])
+        avg_age = df[df['Is Active']]['Days Open'].mean()
+        aged_critical = len(df[(df['Is Active']) & (df['Priority Level'] <= 2) & (df['Days Open'] > 7)])
+        age_color = "🟢" if avg_age < 7 else "🟡" if avg_age < 14 else "🔴"
+        st.metric("Open Backlog", f"{open_backlog:,}")
+        st.metric("Avg Age", f"{avg_age:.1f} days")
+        st.markdown(f"{age_color} Status")
+        st.markdown("---")
+    
+    # Row 2: Lifecycle, Priority, Prev/Corr
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("#### 4️⃣ Work Order Lifecycle")
+        df_completed = df[~df['Is Active']]
+        avg_queue = df_completed['Queue Time (Days)'].mean()
+        avg_repair = df_completed['Repair Time (Days)'].mean()
+        queue_color = "🟢" if avg_queue < 3 else "🟡" if avg_queue < 5 else "🔴"
+        st.metric("Avg Queue", f"{avg_queue:.1f} days" if not pd.isna(avg_queue) else "N/A")
+        st.metric("Avg Repair", f"{avg_repair:.1f} days" if not pd.isna(avg_repair) else "N/A")
+        st.markdown(f"{queue_color} Queue Status")
+        st.markdown("---")
+    
+    with col2:
+        st.markdown("#### 5️⃣ Priority & Risk")
+        high_pri = len(df[(df['Priority Level'] <= 2) & df['Is Active']])
+        p1_count = len(df[(df['Priority Level'] == 1) & df['Is Active']])
+        high_pri_age = df[(df['Priority Level'] <= 2) & df['Is Active']]['Days Open'].mean()
+        pri_color = "🟢" if p1_count == 0 else "🟡" if p1_count < 5 else "🔴"
+        st.metric("P1 Critical", f"{p1_count:,}")
+        st.metric("P1/P2 Open", f"{high_pri:,}")
+        st.markdown(f"{pri_color} Status")
+        st.markdown("---")
+    
+    with col3:
+        st.markdown("#### 6️⃣ Preventive vs Corrective")
+        preventive = len(df[df['Maintenance Type'] == 'Preventive'])
+        corrective = len(df[df['Maintenance Type'] == 'Corrective'])
+        pm_pct = (preventive / total_wo * 100) if total_wo > 0 else 0
+        pm_color = "🟢" if pm_pct > 30 else "🟡" if pm_pct > 20 else "🔴"
+        st.metric("PM %", f"{pm_pct:.1f}%")
+        st.metric("PM/CM Ratio", f"{preventive/corrective:.2f}" if corrective > 0 else "N/A")
+        st.markdown(f"{pm_color} Status")
+        st.markdown("---")
+    
+    # Row 3: Repeat, Technician, Quality
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("#### 7️⃣ Repeat Issues")
+        vehicle_counts = df.groupby('Vehicle ID').size()
+        high_repeat = len(vehicle_counts[vehicle_counts > 5])
+        top_vehicle_wo = vehicle_counts.max() if len(vehicle_counts) > 0 else 0
+        repeat_color = "🟢" if high_repeat < 20 else "🟡" if high_repeat < 50 else "🔴"
+        st.metric("Vehicles >5 WOs", f"{high_repeat:,}")
+        st.metric("Top Vehicle WOs", f"{int(top_vehicle_wo)}")
+        st.markdown(f"{repeat_color} Status")
+        st.markdown("---")
+    
+    with col2:
+        st.markdown("#### 8️⃣ Technician Productivity")
+        techs = df[df['Assigned To'].notna()]['Assigned To'].nunique()
+        avg_wo_tech = (df[df['Assigned To'].notna()].shape[0] / techs) if techs > 0 else 0
+        tech_color = "🟢" if avg_wo_tech < 100 else "🟡" if avg_wo_tech < 150 else "🔴"
+        st.metric("Active Technicians", f"{techs:,}")
+        st.metric("Avg WOs/Tech", f"{avg_wo_tech:.1f}")
+        st.markdown(f"{tech_color} Status")
+        st.markdown("---")
+    
+    with col3:
+        st.markdown("#### 9️⃣ Data Quality")
+        missing_start = df['Start Date'].isna().sum()
+        completed_df = df[df['Status'].isin(['Completed', 'Closed'])]
+        missing_completion = completed_df['Completion Date'].isna().sum() if len(completed_df) > 0 else 0
+        quality_score = 100 - ((missing_start + missing_completion) / total_wo * 100)
+        quality_color = "🟢" if quality_score > 90 else "🟡" if quality_score > 75 else "🔴"
+        st.metric("Quality Score", f"{quality_score:.1f}%")
+        st.metric("Missing Data", f"{missing_start + missing_completion:,}")
+        st.markdown(f"{quality_color} Status")
+        st.markdown("---")
+    
+    # Row 4: Unit, Mileage, Fleet
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("#### 🔟 Owning Unit")
+        units = df['Unit Code'].nunique()
+        unit_stats = df.groupby('Unit Code').size()
+        top_unit_wo = unit_stats.max() if len(unit_stats) > 0 else 0
+        st.metric("Total Units", f"{units:,}")
+        st.metric("Top Unit WOs", f"{int(top_unit_wo)}")
+        st.markdown("---")
+    
+    with col2:
+        st.markdown("#### 1️⃣1️⃣ Vehicle Mileage")
+        df_mileage = df[df['Mileage'].notna()]
+        avg_mileage = df_mileage['Mileage'].mean()
+        high_mileage = len(df_mileage[df_mileage['Mileage'] > 100000])
+        mileage_color = "🟢" if high_mileage < 100 else "🟡" if high_mileage < 200 else "🔴"
+        st.metric("Avg Mileage", f"{avg_mileage:,.0f} km" if not pd.isna(avg_mileage) else "N/A")
+        st.metric("High Mileage (>100k)", f"{high_mileage:,}")
+        st.markdown(f"{mileage_color} Status")
+        st.markdown("---")
+    
+    with col3:
+        st.markdown("#### 1️⃣2️⃣ Vehicle Fleet")
+        vehicles = df['Vehicle ID'].nunique()
+        vehicle_types = df['Vehicle Type'].nunique()
+        avg_wo_vehicle = total_wo / vehicles if vehicles > 0 else 0
+        st.metric("Total Vehicles", f"{vehicles:,}")
+        st.metric("Avg WOs/Vehicle", f"{avg_wo_vehicle:.1f}")
+        st.markdown("---")
+    
+    # Row 5: Process Mining
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("#### 1️⃣3️⃣ Process Mining")
+        bottleneck_state = df[df['Is Active']]['Status'].value_counts().idxmax() if len(df[df['Is Active']]) > 0 else "None"
+        bottleneck_count = df[df['Is Active']]['Status'].value_counts().max() if len(df[df['Is Active']]) > 0 else 0
+        stuck_30 = len(df[(df['Is Active']) & (df['Days Open'] > 30)])
+        stuck_color = "🟢" if stuck_30 < 10 else "🟡" if stuck_30 < 30 else "🔴"
+        st.metric("Bottleneck State", bottleneck_state)
+        st.metric("WOs in Bottleneck", f"{int(bottleneck_count):,}")
+        st.metric("Stuck >30 Days", f"{stuck_30:,}")
+        st.markdown(f"{stuck_color} Status")
+        st.markdown("---")
+    
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    
+    # Critical Alerts Section
+    st.markdown("### 🚨 Critical Alerts & Action Items")
+    
+    alerts = []
+    
+    # Check for critical issues
+    if p1_count > 0:
+        alerts.append({
+            'severity': '🔴',
+            'dashboard': 'Priority & Risk',
+            'issue': f'{p1_count} Priority 1 Critical work orders open',
+            'action': 'Review and expedite immediately'
+        })
+    
+    if waiting_parts > 100:
+        alerts.append({
+            'severity': '🔴',
+            'dashboard': 'Parts Analysis',
+            'issue': f'{waiting_parts} work orders waiting for parts',
+            'action': 'Review parts inventory and supplier performance'
+        })
+    
+    if stuck_30 > 20:
+        alerts.append({
+            'severity': '🔴',
+            'dashboard': 'Process Mining',
+            'issue': f'{stuck_30} work orders stuck >30 days',
+            'action': 'Immediate investigation required'
+        })
+    
+    if aged_critical > 10:
+        alerts.append({
+            'severity': '🟡',
+            'dashboard': 'Backlog Aging',
+            'issue': f'{aged_critical} critical orders aged >7 days',
+            'action': 'Prioritize high-priority backlog'
+        })
+    
+    if pm_pct < 20:
+        alerts.append({
+            'severity': '🟡',
+            'dashboard': 'Preventive vs Corrective',
+            'issue': f'PM percentage low at {pm_pct:.1f}% (target 30%)',
+            'action': 'Increase preventive maintenance scheduling'
+        })
+    
+    if quality_score < 80:
+        alerts.append({
+            'severity': '🟡',
+            'dashboard': 'Data Quality',
+            'issue': f'Data quality score at {quality_score:.1f}% (target >90%)',
+            'action': 'Address missing data fields'
+        })
+    
+    if len(alerts) > 0:
+        alert_df = pd.DataFrame(alerts)
+        st.dataframe(alert_df, use_container_width=True, height=min(len(alerts) * 50 + 50, 400))
+    else:
+        st.success("✅ No critical alerts - All systems operating within acceptable parameters")
+    
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    
+    # Quick Stats Grid
+    st.markdown("### 📈 Quick Statistics")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown("**📅 Time Period**")
+        date_range = (df['Created Date'].max() - df['Created Date'].min()).days
+        st.markdown(f"Date Range: {date_range} days")
+        st.markdown(f"From: {df['Created Date'].min().strftime('%Y-%m-%d')}")
+        st.markdown(f"To: {df['Created Date'].max().strftime('%Y-%m-%d')}")
+    
+    with col2:
+        st.markdown("**🏢 Coverage**")
+        st.markdown(f"Provinces: {df['Province'].nunique()}")
+        st.markdown(f"Cities: {df['City'].nunique()}")
+        st.markdown(f"Brigades: {df['Brigade'].nunique()}")
+        st.markdown(f"Workshops: {df['Workshop'].nunique()}")
+    
+    with col3:
+        st.markdown("**🚗 Fleet**")
+        st.markdown(f"Vehicles: {df['Vehicle ID'].nunique():,}")
+        st.markdown(f"Vehicle Types: {df['Vehicle Type'].nunique()}")
+        st.markdown(f"Units: {df['Unit Code'].nunique()}")
+    
+    with col4:
+        st.markdown("**👥 Resources**")
+        st.markdown(f"Technicians: {df[df['Assigned To'].notna()]['Assigned To'].nunique()}")
+        st.markdown(f"Avg Load: {avg_wo_tech:.1f} WOs/Tech")
+    
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    
+    # Top Issues Summary
+    st.markdown("### 🔝 Top Issues & Trends")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**Top 5 Most Common Issues**")
+        top_issues = df['Description'].value_counts().head(5).reset_index()
+        top_issues.columns = ['Issue', 'Count']
+        top_issues['Issue'] = top_issues['Issue'].str[:50] + '...'
+        
+        fig = px.bar(top_issues, y='Issue', x='Count', orientation='h',
+                    color='Count', color_continuous_scale='Reds',
+                    text='Count')
+        fig.update_traces(textposition='outside')
+        fig.update_layout(height=300, showlegend=False, margin=dict(l=10, r=10, t=10, b=10))
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        st.markdown("**Top 5 Workshops by Volume**")
+        top_workshops = df.groupby('Workshop').size().reset_index(name='Count').nlargest(5, 'Count')
+        
+        fig = px.bar(top_workshops, y='Workshop', x='Count', orientation='h',
+                    color='Count', color_continuous_scale='Blues',
+                    text='Count')
+        fig.update_traces(textposition='outside')
+        fig.update_layout(height=300, showlegend=False, margin=dict(l=10, r=10, t=10, b=10))
+        st.plotly_chart(fig, use_container_width=True)
+    
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    
+    # Navigation Helper
+    st.markdown("### 🧭 Navigate to Detailed Dashboard")
+    st.info("💡 **Tip:** Use the dashboard navigation in the sidebar to drill into specific areas for detailed analysis")
+
 def main():
     """Main application entry point"""
     
@@ -2222,6 +2575,7 @@ def main():
             st.markdown("### 📊 Dashboard Navigation")
             
             dashboard_options = [
+                "📊 Summary View",
                 "1️⃣ Executive Overview",
                 "2️⃣ Parts Analysis",
                 "3️⃣ Backlog Aging",
@@ -2249,7 +2603,9 @@ def main():
                 st.warning("⚠️ No data matches the selected filters. Please adjust your filter criteria.")
                 st.stop()
             
-            if "Executive Overview" in dashboard:
+            if "Summary View" in dashboard:
+                summary_view_dashboard(df_filtered)
+            elif "Executive Overview" in dashboard:
                 executive_overview_dashboard(df_filtered)
             elif "Parts Analysis" in dashboard:
                 parts_analysis_dashboard(df_filtered)
