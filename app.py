@@ -78,6 +78,33 @@ st.markdown("""
     .role-supervisor { background-color: #17a2b8; }
     .role-fleet { background-color: #28a745; }
     .role-exec { background-color: #dc3545; }
+    
+    /* Quick Filter Buttons */
+    .quick-filter-section {
+        background: linear-gradient(90deg, #f8f9fa 0%, #ffffff 100%);
+        padding: 1rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        border: 1px solid #dee2e6;
+    }
+    .filter-active {
+        background-color: #2c5f2d !important;
+        color: white !important;
+        font-weight: 600;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .filter-inactive {
+        background-color: #e9ecef !important;
+        color: #495057 !important;
+    }
+    .filter-indicator {
+        background-color: #d1ecf1;
+        border-left: 4px solid #17a2b8;
+        padding: 0.75rem;
+        margin: 0.5rem 0;
+        border-radius: 4px;
+    }
+    
     div[data-testid="stMetricValue"] { font-size: 2rem; font-weight: 700; }
 </style>
 """, unsafe_allow_html=True)
@@ -2605,12 +2632,154 @@ def main():
             st.markdown(f"**Role:** {role}")
             st.markdown(f"**Records:** {len(df_filtered):,}")
         
+        # Quick Province Filter Buttons
+        st.markdown("""
+        <div style='background: linear-gradient(90deg, #f0f8f0 0%, #ffffff 100%); 
+                    padding: 1.5rem; 
+                    border-radius: 10px; 
+                    margin-bottom: 2rem; 
+                    border: 2px solid #2c5f2d;'>
+            <h3 style='margin: 0 0 1rem 0; color: #2c5f2d;'>
+                🌍 Quick Province Filter
+            </h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Get unique provinces from scoped data
+        available_provinces = sorted(df_scoped['Province'].dropna().unique().tolist())
+        
+        # Current selection
+        current_province = filters.get('Province', 'All')
+        
+        # Create filter buttons with better spacing
+        button_cols = st.columns(len(available_provinces) + 1)
+        
+        # "All" button
+        with button_cols[0]:
+            all_selected = (current_province == 'All')
+            if st.button("🌐 **All Provinces**", 
+                        type="primary" if all_selected else "secondary",
+                        use_container_width=True,
+                        key="province_all"):
+                filters['Province'] = 'All'
+                # Reset dependent filters when changing province
+                filters['City'] = 'All'
+                filters['Brigade'] = 'All'
+                filters['Workshop'] = 'All'
+                filters['Unit Code'] = 'All'
+                filters['Vehicle Type'] = 'All'
+                st.rerun()
+        
+        # Province buttons
+        for idx, province in enumerate(available_provinces):
+            with button_cols[idx + 1]:
+                # Extract province short name for button
+                province_short = province.replace(' Province', '').replace('Province', '').strip()
+                
+                # Count work orders in this province
+                province_count = len(df_scoped[df_scoped['Province'] == province])
+                
+                # Determine button type based on selection
+                is_selected = (current_province == province)
+                button_type = "primary" if is_selected else "secondary"
+                
+                # Button label with count
+                button_label = f"📍 **{province_short}**\n{province_count:,} WOs"
+                
+                if st.button(button_label, 
+                           type=button_type,
+                           use_container_width=True,
+                           key=f"province_{idx}_{province}",
+                           help=f"Filter by {province} ({province_count:,} work orders)"):
+                    filters['Province'] = province
+                    # Reset dependent filters
+                    filters['City'] = 'All'
+                    filters['Brigade'] = 'All'
+                    filters['Workshop'] = 'All'
+                    filters['Unit Code'] = 'All'
+                    filters['Vehicle Type'] = 'All'
+                    st.rerun()
+        
+        # Show active filter indicator
+        if current_province != 'All':
+            province_wo_count = len(df_scoped[df_scoped['Province'] == current_province])
+            st.markdown(f"""
+            <div style='background-color: #d1ecf1; 
+                        border-left: 4px solid #17a2b8; 
+                        padding: 0.75rem; 
+                        margin: 1rem 0; 
+                        border-radius: 4px;'>
+                <strong>🔍 Active Filter:</strong> {current_province} ({province_wo_count:,} work orders)
+                <br><small>💡 Click "All Provinces" to clear filter</small>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+        
+        # Apply filters
+        df_filtered = apply_cascading_filters(df_scoped, filters)
+        
         # Display selected dashboard
         try:
             if len(df_filtered) == 0:
                 st.warning("⚠️ No data matches the selected filters. Please adjust your filter criteria.")
                 st.stop()
             
+            # Quick Province Filter Buttons (appears on all dashboards)
+            st.markdown("### 🗺️ Quick Province Filter")
+            
+            # Get available provinces from scoped data
+            available_provinces = sorted(df_scoped['Province'].dropna().unique().tolist())
+            
+            # Create buttons in columns
+            cols_per_row = 4
+            num_provinces = len(available_provinces)
+            num_rows = (num_provinces + cols_per_row) // cols_per_row
+            
+            # Add "All Provinces" button first
+            button_cols = st.columns(cols_per_row)
+            
+            with button_cols[0]:
+                if st.button("🌍 All Provinces", use_container_width=True, 
+                           type="primary" if filters.get('Province') == 'All' else "secondary"):
+                    filters['Province'] = 'All'
+                    st.rerun()
+            
+            # Add province buttons
+            button_idx = 1
+            for idx, province in enumerate(available_provinces):
+                col_idx = button_idx % cols_per_row
+                
+                # Create new row of columns if needed
+                if col_idx == 0 and button_idx > 0:
+                    button_cols = st.columns(cols_per_row)
+                
+                with button_cols[col_idx]:
+                    # Count work orders in this province
+                    wo_count = len(df_scoped[df_scoped['Province'] == province])
+                    
+                    # Determine button type (primary if selected)
+                    button_type = "primary" if filters.get('Province') == province else "secondary"
+                    
+                    # Create button with count
+                    if st.button(f"📍 {province} ({wo_count})", 
+                               use_container_width=True,
+                               type=button_type,
+                               key=f"province_filter_{province}"):
+                        # Update filters
+                        filters['Province'] = province
+                        filters['City'] = 'All'  # Reset dependent filters
+                        filters['Brigade'] = 'All'
+                        filters['Workshop'] = 'All' if role != "Supervisor" else user_workshops[0]
+                        filters['Unit Code'] = 'All'
+                        filters['Vehicle Type'] = 'All'
+                        st.rerun()
+                
+                button_idx += 1
+            
+            st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+            
+            # Display selected dashboard
             if "Summary View" in dashboard:
                 summary_view_dashboard(df_filtered)
             elif "Executive Overview" in dashboard:
