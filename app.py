@@ -59,6 +59,14 @@ st.markdown("""
     .alert-warning { background-color: #fff3cd; border-color: #ffc107; color: #856404; }
     .alert-success { background-color: #d4edda; border-color: #28a745; color: #155724; }
     .alert-info { background-color: #d1ecf1; border-color: #17a2b8; color: #0c5460; }
+    
+    /* Status Color Definitions - Aligned with IMSS System */
+    .status-draft { background-color: #6c757d; } /* Gray */
+    .status-waiting-parts { background-color: #ffc107; } /* Yellow */
+    .status-waiting-approval { background-color: #fd7e14; } /* Orange */
+    .status-under-maintenance { background-color: #17a2b8; } /* Cyan */
+    .status-rejected { background-color: #dc3545; } /* Red */
+    .status-completed { background-color: #28a745; } /* Green */
     .role-badge {
         display: inline-block;
         padding: 0.5rem 1rem;
@@ -289,8 +297,11 @@ def compute_derived_metrics(df):
     df_computed['Month'] = df_computed['Created Date'].dt.to_period('M').astype(str)
     df_computed['Week'] = df_computed['Created Date'].dt.to_period('W').astype(str)
     
-    # Is Active flag
-    df_computed['Is Active'] = ~df_computed['Status'].isin(['Completed', 'Closed'])
+    # Is Active flag - Based on actual IMSS system statuses
+    # Active: Draft, Waiting Parts, Waiting FM Approval, Under Maintenance
+    # Inactive: Completed, Rejected
+    active_statuses = ['Draft', 'Waiting Parts', 'Waiting FM Approval', 'Under Maintenance']
+    df_computed['Is Active'] = df_computed['Status'].isin(active_statuses)
     
     return df_computed
 
@@ -502,13 +513,19 @@ def executive_overview_dashboard(df):
     with col1:
         st.subheader("📊 Status Distribution")
         status_counts = df['Status'].value_counts()
-        colors = {
-            'Open': '#dc3545', 'In Progress': '#ffc107',
-            'Waiting Parts': '#fd7e14', 'Under Maintenance': '#17a2b8',
-            'Completed': '#28a745', 'Closed': '#20c997'
+        
+        # IMSS System Status Colors
+        status_colors = {
+            'Draft': '#6c757d',                    # Gray
+            'Waiting Parts': '#ffc107',            # Yellow
+            'Waiting FM Approval': '#fd7e14',      # Orange
+            'Under Maintenance': '#17a2b8',        # Cyan
+            'Rejected': '#dc3545',                 # Red
+            'Completed': '#28a745'                 # Green
         }
+        
         fig = px.pie(values=status_counts.values, names=status_counts.index,
-                    color=status_counts.index, color_discrete_map=colors, hole=0.4)
+                    color=status_counts.index, color_discrete_map=status_colors, hole=0.4)
         fig.update_traces(textposition='inside', textinfo='percent+label')
         fig.update_layout(height=350)
         st.plotly_chart(fig, use_container_width=True)
@@ -1509,12 +1526,12 @@ def process_mining_dashboard(df):
         - **Transition Analysis**: Understand status change patterns
         
         **Key Stages:**
-        1. **Open** → Work order created, waiting to start
-        2. **In Progress** → Active work being performed
-        3. **Waiting Parts** → Stuck waiting for spare parts
-        4. **Under Maintenance** → In workshop for repair
-        5. **Completed** → Work finished, pending final closure
-        6. **Closed** → Work order fully closed
+        1. **Draft** → Work order created, not yet started
+        2. **Waiting Parts** → Stuck waiting for spare parts
+        3. **Waiting FM Approval** → Pending Fleet Manager approval
+        4. **Under Maintenance** → Active repair work in workshop
+        5. **Completed** → Work finished
+        6. **Rejected** → Order rejected/cancelled
         
         **How to Use:** Identify which stages have longest durations and highest volumes to focus improvement efforts.
         """)
@@ -1529,8 +1546,8 @@ def process_mining_dashboard(df):
     # Calculate stage durations (approximations based on available dates)
     df_process = df.copy()
     
-    # Define process stages based on current status
-    status_order = ['Open', 'In Progress', 'Waiting Parts', 'Under Maintenance', 'Completed', 'Closed']
+    # Define process stages based on IMSS system statuses
+    status_order = ['Draft', 'Waiting Parts', 'Waiting FM Approval', 'Under Maintenance', 'Rejected', 'Completed']
     
     # Top KPIs
     col1, col2, col3, col4 = st.columns(4)
@@ -1572,12 +1589,12 @@ def process_mining_dashboard(df):
     colors = []
     
     color_map = {
-        'Open': 'rgba(220, 53, 69, 0.4)',
-        'In Progress': 'rgba(255, 193, 7, 0.4)',
-        'Waiting Parts': 'rgba(253, 126, 20, 0.4)',
-        'Under Maintenance': 'rgba(23, 162, 184, 0.4)',
-        'Completed': 'rgba(40, 167, 69, 0.4)',
-        'Closed': 'rgba(32, 201, 151, 0.4)'
+        'Draft': 'rgba(108, 117, 125, 0.4)',         # Gray
+        'Waiting Parts': 'rgba(255, 193, 7, 0.4)',   # Yellow  
+        'Waiting FM Approval': 'rgba(253, 126, 20, 0.4)',  # Orange
+        'Under Maintenance': 'rgba(23, 162, 184, 0.4)',    # Cyan
+        'Rejected': 'rgba(220, 53, 69, 0.4)',        # Red
+        'Completed': 'rgba(40, 167, 69, 0.4)'        # Green
     }
     
     for status in status_order:
@@ -1587,9 +1604,9 @@ def process_mining_dashboard(df):
             values.append(status_dist[status])
             colors.append(color_map.get(status, 'rgba(128, 128, 128, 0.4)'))
     
-    # Add transitions from intermediate statuses to Completed/Closed
-    # Assume: In Progress, Waiting Parts, Under Maintenance → Completed → Closed
-    intermediate_statuses = ['In Progress', 'Waiting Parts', 'Under Maintenance']
+    # Add transitions from intermediate statuses to Completed
+    # Assume: Draft, Waiting Parts, Waiting FM Approval, Under Maintenance → Completed
+    intermediate_statuses = ['Draft', 'Waiting Parts', 'Waiting FM Approval', 'Under Maintenance']
     for status in intermediate_statuses:
         if status in status_dist.index and 'Completed' in status_dist.index:
             # Add flow to Completed
@@ -1598,23 +1615,14 @@ def process_mining_dashboard(df):
             values.append(int(status_dist[status] * 0.6))  # Assume 60% complete
             colors.append(color_map.get('Completed', 'rgba(40, 167, 69, 0.4)'))
     
-    # Completed → Closed
-    if 'Completed' in status_dist.index and 'Closed' in status_dist.index:
-        source_indices.append(labels.index('Completed'))
-        target_indices.append(labels.index('Closed'))
-        values.append(status_dist['Closed'])
-        colors.append(color_map.get('Closed', 'rgba(32, 201, 151, 0.4)'))
-    
     fig = go.Figure(data=[go.Sankey(
         node=dict(
             pad=15,
             thickness=20,
             line=dict(color="black", width=0.5),
             label=labels,
-            color=['#2c5f2d'] + [
-                '#dc3545', '#ffc107', '#fd7e14', 
-                '#17a2b8', '#28a745', '#20c997'
-            ]
+            color=['#2c5f2d', '#6c757d', '#ffc107', '#fd7e14', 
+                   '#17a2b8', '#dc3545', '#28a745']
         ),
         link=dict(
             source=source_indices,
